@@ -603,6 +603,102 @@ def plot_pca_true_vs_pred(
 
     return plot_df, pca
 
+def plot_top_feature_importances(
+    fitted_pipeline,
+    top_n: int = 10,
+    title: str = "Top feature importances",
+    palette: str = "Blues",
+    figsize=(8, 5),
+    plot_show=False
+):
+    """
+    Plot top-N feature importances from a fitted sklearn Pipeline (e.g. tuned RF)
+    and return BOTH:
+      - top_n importance table
+      - full importance table (all selected features)
+
+    Assumes:
+      - Final estimator step is named 'clf' and exposes feature_importances_
+      - Preprocessing step is named 'pre' and contains a selector 'select'
+        exposing either `features_` (preferred) or `selected_idx_`.
+
+    Returns
+    -------
+    top_df : pd.DataFrame
+        Top-N features, sorted by importance (desc).
+        Columns: feature, importance
+
+    full_df : pd.DataFrame
+        All features with importances, sorted by importance (desc).
+        Columns: feature, importance
+    """
+    sns.set(style="whitegrid", context="talk")
+
+    # --- Extract classifier ---
+    if "clf" not in fitted_pipeline.named_steps:
+        raise ValueError("Pipeline must have a final step named 'clf'.")
+
+    clf = fitted_pipeline.named_steps["clf"]
+
+    if not hasattr(clf, "feature_importances_"):
+        raise ValueError("Classifier does not expose feature_importances_.")
+
+    importances = np.asarray(clf.feature_importances_, dtype=float)
+
+    # --- Recover feature names ---
+    feat_names = None
+    pre = fitted_pipeline.named_steps.get("pre", None)
+
+    if pre is not None and hasattr(pre, "named_steps") and "select" in pre.named_steps:
+        selector = pre.named_steps["select"]
+        if hasattr(selector, "features_") and selector.features_ is not None:
+            feat_names = np.array(selector.features_, dtype=object)
+        elif hasattr(selector, "selected_idx_") and selector.selected_idx_ is not None:
+            feat_names = np.array(
+                [f"f{int(i)}" for i in selector.selected_idx_],
+                dtype=object
+            )
+
+    # Fallback if names cannot be recovered
+    if feat_names is None or len(feat_names) != len(importances):
+        feat_names = np.array([f"f{i}" for i in range(len(importances))], dtype=object)
+
+    # --- Full importance table ---
+    full_df = (
+        pd.DataFrame({"feature": feat_names, "importance": importances})
+        .sort_values("importance", ascending=False)
+        .reset_index(drop=True)
+    )
+
+    # --- Top-N table ---
+    top_df = full_df.head(top_n).copy()
+
+    # Reverse for horizontal barplot (largest on top)
+    plot_df = top_df.iloc[::-1]
+
+    # --- Plot ---
+    fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
+
+    sns.barplot(
+        data=plot_df,
+        x="importance",
+        y="feature",
+        hue="feature",      # required for seaborn ≥0.13
+        palette=palette,
+        dodge=False,
+        legend=False,
+        ax=ax
+    )
+
+    ax.set_title(title)
+    ax.set_xlabel("Feature importance")
+    ax.set_ylabel("")
+    if plot_show == True:
+        plt.show()
+    else:
+        plt.close()
+
+    return top_df, full_df
 
 def evaluate_multiclass(y_true, y_pred, y_proba=None, model_name="Model"):
     """
