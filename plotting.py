@@ -12,16 +12,6 @@ from sklearn.preprocessing import StandardScaler, label_binarize
 from sklearn.decomposition import PCA
 from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix, roc_curve, ConfusionMatrixDisplay, balanced_accuracy_score, f1_score, log_loss
 
-def plot_counts(series: pd.Series, title: str, rotate_xticks: int = 45):
-    """Bar plot of value counts, including NaN."""
-    vc = series.value_counts(dropna=False)
-    plt.figure()
-    vc.plot(kind="bar")
-    plt.title(title)
-    plt.ylabel("count")
-    plt.xticks(rotation=rotate_xticks, ha="right")
-    plt.tight_layout()
-    plt.close()
 
 def plot_counts_ax(DEFAULT_BLUE_PALETTE, series: pd.Series, title: str, ax, rotate_xticks: int = 45, order=None, palette=None, missing_label="Missing"):
     sns.set(style="whitegrid", context="talk")
@@ -89,24 +79,6 @@ def plot_mars_counts_ax(MARS_ORDER, MARS_PALETTE, series: pd.Series, title: str,
     ax.set_xlabel("")
     ax.set_ylabel("Count")
     ax.tick_params(axis="x", rotation=45)
-
-def plot_missingness_bar_ax(df, cols, title, ax):
-    miss = df[cols].isna().mean().sort_values(ascending=False)
-    miss.plot(kind="bar", ax=ax)
-    ax.set_title(title)
-    ax.set_ylabel("fraction missing")
-    ax.set_xlabel("")
-    ax.set_ylim(0, 1)
-    ax.tick_params(axis="x", rotation=45)
-
-def plot_missingness_hist_ax(df, cols, title, ax, bins=20):
-    per_sample = df[cols].isna().mean(axis=1)
-    ax.hist(per_sample.dropna(), bins=bins)
-    ax.set_title(title)
-    ax.set_xlabel("fraction missing (per sample)")
-    ax.set_ylabel("count")
-    ax.set_xlim(0, 1)
-    return per_sample
 
 def plot_expression_distributions(
     X: pd.DataFrame,
@@ -700,15 +672,404 @@ def plot_top_feature_importances(
 
     return top_df, full_df
 
-def evaluate_multiclass(y_true, y_pred, y_proba=None, model_name="Model"):
-    """
-    Prints standard multiclass metrics. If y_proba provided, also prints log loss and macro ROC-AUC.
-    """
-    print(f"\n===== {model_name} =====")
-    print(classification_report(y_true, y_pred))
-    print("Balanced Accuracy:", balanced_accuracy_score(y_true, y_pred))
-    print("Macro F1:", f1_score(y_true, y_pred, average="macro"))
 
-    if y_proba is not None:
-        print("Log Loss:", log_loss(y_true, y_proba))
-        print("Macro ROC-AUC (OvR):", roc_auc_score(y_true, y_proba, multi_class="ovr", average="macro"))
+def plot_mortality_stratification(
+    stratification_df: pd.DataFrame,
+    mort_by_pred: pd.DataFrame,
+    mars_order=None,
+    mars_palette=None,
+    figsize=(16, 4.5),
+    title_prefix="",
+):
+    """
+    Create a 3-panel figure for mortality stratification:
+      (1) Mortality rate by *predicted* endotype (with overall mortality dashed line)
+      (2) Total patients and deaths by predicted endotype
+      (3) True vs Predicted mortality rate comparison by endotype
+
+    Parameters
+    ----------
+    stratification_df : pd.DataFrame
+        Must contain columns:
+          - 'mortality_28day'  (0/1 or boolean)
+          - 'true_endotype'    (e.g., Mars1..Mars4)
+        (Optional) may also contain 'pred_endotype' but not required here.
+
+    mort_by_pred : pd.DataFrame
+        Indexed by predicted endotype with columns:
+          - 'mortality_rate'
+          - 'total_samples'
+          - 'deaths'
+
+    mars_order : list or None
+        Optional explicit ordering of endotypes (recommended).
+        Example: ["Mars1","Mars2","Mars3","Mars4"]
+
+    mars_palette : dict or None
+        Optional mapping endotype -> color. If provided, used consistently across panels.
+        Example: {"Mars1":"...", "Mars2":"...", ...}
+
+    figsize : tuple
+        Figure size.
+
+    title_prefix : str
+        Optional prefix to prepend to subplot titles.
+
+    Returns
+    -------
+    fig, axes, comparison_df
+        comparison_df has columns ["True","Predicted"] indexed by endotype.
+    """
+    sns.set(style="whitegrid", context="talk")
+
+    # --- Basic checks ---
+    required_cols = {"mortality_28day", "true_endotype"}
+    missing_cols = required_cols - set(stratification_df.columns)
+    if missing_cols:
+        raise ValueError(f"stratification_df missing required columns: {missing_cols}")
+
+    required_pred_cols = {"mortality_rate", "total_samples", "deaths"}
+    missing_pred_cols = required_pred_cols - set(mort_by_pred.columns)
+    if missing_pred_cols:
+        raise ValueError(f"mort_by_pred missing required columns: {missing_pred_cols}")
+
+    # --- Align ordering ---
+    if mars_order is None:
+        # Use mort_by_pred order first; fallback to sorted unique endotypes
+        mars_order = list(mort_by_pred.index)
+
+    # Reindex mort_by_pred to desired order (drop missing, keep existing)
+    mort_by_pred = mort_by_pred.reindex([m for m in mars_order if m in mort_by_pred.index])
+
+    # Overall mortality
+    overall_mort = float(pd.Series(stratification_df["mortality_28day"]).mean())
+
+    # --- Panel 3: True vs Predicted comparison table ---
+    mort_by_true = stratification_df.groupby("true_endotype")["mortality_28day"].mean()
+    mort_by_true = mort_by_true.reindex([m for m in mars_order if m in mort_by_true.index])
+
+    mort_by_pred_rate = mort_by_pred["mortality_rate"].copy()
+    mort_by_pred_rate = mort_by_pred_rate.reindex(mort_by_true.index)
+
+    comparison_df = pd.DataFrame({"True": mort_by_true, "Predicted": mort_by_pred_rate})
+
+    # --- Colors ---
+    # Rules: endotypes can use mars_palette; otherwise default to Blues.
+    if mars_palette is None:
+        cols = sns.color_palette("Blues", n_colors=max(4, len(mars_order)))
+        mars_palette = {m: cols[i % len(cols)] for i, m in enumerate(mars_order)}
+
+    # Non-endotype elements should be blue hues unless specified. Keep deaths neutral/darker.
+    blue_dark = sns.color_palette("Blues", n_colors=6)[-2]
+    blue_light = sns.color_palette("Blues", n_colors=6)[-4]
+    deaths_color = "gray"  # neutral; change if you prefer a blue shade
+
+    # =========================
+    # Plotting
+    # =========================
+    fig, axes = plt.subplots(1, 3, figsize=figsize, constrained_layout=True)
+
+    # 1) Mortality rate by predicted endotype
+    ax = axes[0]
+    x_labels = mort_by_pred.index.tolist()
+    y_vals = mort_by_pred["mortality_rate"].values
+    colors_pred = [mars_palette.get(k, blue_dark) for k in x_labels]
+
+    ax.bar(x_labels, y_vals, color=colors_pred, alpha=0.85, edgecolor="black", linewidth=0.8)
+    ax.set_title(f"{title_prefix}28-Day Mortality Rate by Predicted Endotype".strip(), fontweight="bold")
+    ax.set_ylabel("Mortality Rate")
+    ax.set_xlabel("Predicted Endotype")
+    ax.set_ylim(0, 1)
+    ax.tick_params(axis="x", rotation=45)
+
+    ax.axhline(
+        y=overall_mort,
+        color="black",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Overall: {overall_mort:.2f}",
+    )
+    ax.legend(fontsize=9, frameon=True)
+    ax.grid(axis="y", alpha=0.3)
+
+    # 2) Total counts and deaths by predicted endotype
+    ax = axes[1]
+    x_pos = np.arange(len(mort_by_pred))
+    width = 0.38
+
+    ax.bar(
+        x_pos - width / 2,
+        mort_by_pred["total_samples"].values,
+        width,
+        label="Total Patients",
+        color=blue_light,
+        alpha=0.85,
+        edgecolor="black",
+        linewidth=0.8,
+    )
+    ax.bar(
+        x_pos + width / 2,
+        mort_by_pred["deaths"].values,
+        width,
+        label="Deaths",
+        color=deaths_color,
+        alpha=0.85,
+        edgecolor="black",
+        linewidth=0.8,
+    )
+
+    ax.set_title(f"{title_prefix}Patient Counts and Deaths by Endotype".strip(), fontweight="bold")
+    ax.set_ylabel("Count")
+    ax.set_xlabel("Predicted Endotype")
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(mort_by_pred.index.tolist(), rotation=45)
+    ax.legend(fontsize=9, frameon=True)
+    ax.grid(axis="y", alpha=0.3)
+
+    # 3) True vs Predicted comparison
+    ax = axes[2]
+    x_pos_comp = np.arange(len(comparison_df))
+    width_comp = 0.38
+
+    # True bars: endotype palette; Pred bars: lighter blues to keep "non-endotype" style
+    true_colors = [mars_palette.get(k, blue_dark) for k in comparison_df.index]
+    pred_colors = sns.color_palette("Blues", n_colors=max(3, len(comparison_df) + 2))[2:2 + len(comparison_df)]
+
+    ax.bar(
+        x_pos_comp - width_comp / 2,
+        comparison_df["True"].values,
+        width_comp,
+        label="True Endotype",
+        color=true_colors,
+        alpha=0.9,
+        edgecolor="black",
+        linewidth=0.8,
+    )
+    ax.bar(
+        x_pos_comp + width_comp / 2,
+        comparison_df["Predicted"].values,
+        width_comp,
+        label="Predicted",
+        color=pred_colors,
+        alpha=0.9,
+        edgecolor="black",
+        linewidth=0.8,
+    )
+
+    ax.set_xlabel("Endotype", fontweight="bold")
+    ax.set_ylabel("Mortality Rate", fontweight="bold")
+    ax.set_title(f"{title_prefix}True vs Predicted Endotypes".strip(), fontweight="bold")
+    ax.set_xticks(x_pos_comp)
+    ax.set_xticklabels(comparison_df.index.tolist(), rotation=45)
+    ax.set_ylim(0, 1)
+    ax.legend(fontsize=9, frameon=True)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.show()
+    return fig, axes, comparison_df
+
+def plot_mortality_stratification_validation(
+    mort_by_pred_training: pd.DataFrame,
+    overall_mort_training: float,
+    mort_by_pred_validation: pd.DataFrame,
+    overall_mort_validation: float,
+    training_label: str = "Training",
+    validation_label: str = "Validation",
+    mars_order=None,
+    mars_palette=None,
+    figsize=(16, 4.5),
+    title_prefix: str = "",
+    # --- consistent typography ---
+    title_fs: int = 12,
+    label_fs: int = 10,
+    tick_fs: int = 9,
+    legend_fs: int = 9,
+):
+    """
+    3-panel figure for mortality stratification in a validation cohort:
+      (1) Validation cohort mortality rate by predicted endotype (with overall dashed line)
+      (2) Validation cohort total patients and deaths by predicted endotype
+      (3) Training vs Validation mortality rate comparison by predicted endotype
+
+    Inputs
+    ------
+    mort_by_pred_training : pd.DataFrame
+        Index: endotype (e.g., Mars1..Mars4)
+        Columns: 'mortality_rate' (required)
+
+    overall_mort_training : float
+        Overall 28-day mortality in the training cohort.
+
+    mort_by_pred_validation : pd.DataFrame
+        Index: endotype
+        Columns: 'mortality_rate', 'total_samples', 'deaths' (required)
+
+    overall_mort_validation : float
+        Overall 28-day mortality in the validation cohort.
+
+    training_label / validation_label : str
+        Labels used in titles/legends.
+
+    mars_order : list or None
+        Optional desired endotype ordering.
+
+    mars_palette : dict or None
+        Optional mapping endotype -> color (used for endotypes consistently).
+
+    Returns
+    -------
+    fig, axes, comparison_df
+        comparison_df columns: [training_label, validation_label], indexed by endotype.
+    """
+    # Smaller, publication-friendly base sizes
+    sns.set(style="whitegrid", context="paper")
+
+    # --- Checks ---
+    if "mortality_rate" not in mort_by_pred_training.columns:
+        raise ValueError("mort_by_pred_training must contain column 'mortality_rate'.")
+
+    required_val = {"mortality_rate", "total_samples", "deaths"}
+    missing_val = required_val - set(mort_by_pred_validation.columns)
+    if missing_val:
+        raise ValueError(f"mort_by_pred_validation missing required columns: {missing_val}")
+
+    # --- Order ---
+    if mars_order is None:
+        mars_order = list(mort_by_pred_validation.index)
+
+    order = list(dict.fromkeys([m for m in mars_order if (m in mort_by_pred_validation.index) or (m in mort_by_pred_training.index)]))
+
+    mort_by_pred_validation = mort_by_pred_validation.reindex([m for m in order if m in mort_by_pred_validation.index])
+    mort_by_pred_training_rate = mort_by_pred_training["mortality_rate"].reindex(order)
+
+    # --- Comparison DF ---
+    comparison_df = pd.DataFrame({
+        training_label: mort_by_pred_training_rate,
+        validation_label: mort_by_pred_validation["mortality_rate"].reindex(order),
+    }).fillna(0)
+
+    # --- Colors ---
+    if mars_palette is None:
+        cols = sns.color_palette("Blues", n_colors=max(4, len(order)))
+        mars_palette = {m: cols[i % len(cols)] for i, m in enumerate(order)}
+
+    blues = sns.color_palette("Blues", n_colors=8)
+    blue_light = blues[2]
+    training_color = blues[3]
+    validation_color = blues[6]
+    deaths_color = "gray"  # neutral (non-endotype)
+
+    def _apply_typography(ax, xlabel, ylabel, rotation=45):
+        ax.set_xlabel(xlabel, fontsize=label_fs)
+        ax.set_ylabel(ylabel, fontsize=label_fs)
+        ax.tick_params(axis="both", labelsize=tick_fs)
+        ax.tick_params(axis="x", rotation=rotation)
+
+    # =========================
+    # Plotting
+    # =========================
+    fig, axes = plt.subplots(1, 3, figsize=figsize, constrained_layout=True)
+
+    # 1) Validation mortality rate by predicted endotype
+    ax = axes[0]
+    x_labels = mort_by_pred_validation.index.tolist()
+    y_vals = mort_by_pred_validation["mortality_rate"].values
+    colors_pred = [mars_palette.get(k, validation_color) for k in x_labels]
+
+    ax.bar(x_labels, y_vals, color=colors_pred, alpha=0.85, edgecolor="black", linewidth=0.8)
+    ax.set_title(
+        f"{title_prefix}{validation_label}: Mortality Rate by Predicted Endotype".strip(),
+        fontsize=title_fs,
+        fontweight="bold",
+    )
+    _apply_typography(ax, xlabel="Predicted Endotype", ylabel="Mortality Rate", rotation=45)
+    ax.set_ylim(0, 1)
+
+    ax.axhline(
+        y=float(overall_mort_validation),
+        color="black",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Overall: {float(overall_mort_validation):.2f}",
+    )
+    ax.legend(fontsize=legend_fs, frameon=True)
+    ax.grid(axis="y", alpha=0.3)
+
+    # 2) Validation counts and deaths
+    ax = axes[1]
+    x_pos = np.arange(len(mort_by_pred_validation))
+    width = 0.38
+
+    ax.bar(
+        x_pos - width / 2,
+        mort_by_pred_validation["total_samples"].values,
+        width,
+        label="Total Patients",
+        color=blue_light,
+        alpha=0.85,
+        edgecolor="black",
+        linewidth=0.8,
+    )
+    ax.bar(
+        x_pos + width / 2,
+        mort_by_pred_validation["deaths"].values,
+        width,
+        label="Deaths",
+        color=deaths_color,
+        alpha=0.85,
+        edgecolor="black",
+        linewidth=0.8,
+    )
+
+    ax.set_title(
+        f"{title_prefix}{validation_label}: Patient Counts and Deaths".strip(),
+        fontsize=title_fs,
+        fontweight="bold",
+    )
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(mort_by_pred_validation.index.tolist())
+    _apply_typography(ax, xlabel="Predicted Endotype", ylabel="Count", rotation=45)
+    ax.legend(fontsize=legend_fs, frameon=True)
+    ax.grid(axis="y", alpha=0.3)
+
+    # 3) Training vs Validation comparison
+    ax = axes[2]
+    x_pos_comp = np.arange(len(comparison_df))
+    width_comp = 0.38
+
+    ax.bar(
+        x_pos_comp - width_comp / 2,
+        comparison_df[training_label].values,
+        width_comp,
+        label=f"{training_label}",
+        color=training_color,
+        alpha=0.9,
+        edgecolor="black",
+        linewidth=0.8,
+    )
+    ax.bar(
+        x_pos_comp + width_comp / 2,
+        comparison_df[validation_label].values,
+        width_comp,
+        label=f"{validation_label}",
+        color=validation_color,
+        alpha=0.9,
+        edgecolor="black",
+        linewidth=0.8,
+    )
+
+    ax.set_title(
+        f"{title_prefix}Training vs Validation Cohort".strip(),
+        fontsize=title_fs,
+        fontweight="bold",
+    )
+    ax.set_xticks(x_pos_comp)
+    ax.set_xticklabels(comparison_df.index.tolist())
+    _apply_typography(ax, xlabel="Endotype", ylabel="Mortality Rate", rotation=45)
+    ax.set_ylim(0, 1)
+    ax.legend(fontsize=legend_fs, frameon=True)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.show()
+    return fig, axes, comparison_df
+

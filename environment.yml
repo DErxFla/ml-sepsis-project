@@ -1,0 +1,24 @@
+name: ml-sepsis
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - imbalanced-learn
+  - matplotlib
+  - seaborn
+  - statsmodels
+  - joblib
+  - tqdm
+  - jupyterlab
+  - ipykernel
+  - pip
+  - pip:
+      - scikit-optimize
+      - scikit-multilearn
+      - category-encoders
+      - pyreadr
+      - stringdb
