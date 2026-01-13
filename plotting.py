@@ -1,7 +1,4 @@
-# =========================
-# plots.py  (general utils)
-# =========================
-
+# plotting.py
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -11,7 +8,6 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler, label_binarize
 from sklearn.decomposition import PCA
 from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix, roc_curve, ConfusionMatrixDisplay, balanced_accuracy_score, f1_score, log_loss
-
 
 def plot_counts_ax(DEFAULT_BLUE_PALETTE, series: pd.Series, title: str, ax, rotate_xticks: int = 45, order=None, palette=None, missing_label="Missing"):
     sns.set(style="whitegrid", context="talk")
@@ -27,7 +23,7 @@ def plot_counts_ax(DEFAULT_BLUE_PALETTE, series: pd.Series, title: str, ax, rota
         if missing_label in order:
             order = [x for x in order if x != missing_label] + [missing_label]
 
-    # --- default blue hues if no palette provided ---
+    # default blue hues if no palette provided
     if palette is None:
         n = len(order)
         colors = sns.color_palette(DEFAULT_BLUE_PALETTE, n_colors=n)
@@ -62,7 +58,7 @@ def plot_mars_counts_ax(MARS_ORDER, MARS_PALETTE, series: pd.Series, title: str,
     vc.columns = ["endotype", "count"]
 
     order = list(MARS_ORDER) + ([missing_label] if missing_label in vc["endotype"].values else [])
-    palette = {**MARS_PALETTE, missing_label: "#c7d7ea"}  # subtle blue-ish missing
+    palette = {**MARS_PALETTE, missing_label: "#c7d7ea"} 
 
     sns.barplot(
         data=vc,
@@ -80,11 +76,7 @@ def plot_mars_counts_ax(MARS_ORDER, MARS_PALETTE, series: pd.Series, title: str,
     ax.set_ylabel("Count")
     ax.tick_params(axis="x", rotation=45)
 
-def plot_expression_distributions(
-    X: pd.DataFrame,
-    title_prefix="Expression",
-    color="#1f77b4"   # default blue
-):
+def plot_expression_distributions(X: pd.DataFrame, title_prefix="Expression", color="#1f77b4" ):
     """
     Overall distribution and per-sample medians.
     X: samples x genes
@@ -100,7 +92,7 @@ def plot_expression_distributions(
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
 
-    # --- All values distribution ---
+    # All values distribution
     sns.histplot(
         vals,
         bins=60,
@@ -113,7 +105,7 @@ def plot_expression_distributions(
     axes[0].set_xlabel("Expression")
     axes[0].set_ylabel("Count")
 
-    # --- Per-sample median distribution ---
+    # Per-sample median distribution
     sns.histplot(
         med,
         bins=40,
@@ -131,53 +123,29 @@ def plot_expression_distributions(
 
     return med
 
-def plot_mars_mortality_summary(
-    endotype: pd.Series,
-    mortality: pd.Series,
-    MARS_ORDER,
-    MARS_PALETTE,
-    figsize=(12, 4),
-    title_suffix=""
-):
+def plot_mars_mortality_summary(endotype: pd.Series, mortality: pd.Series, MARS_ORDER,
+                                MARS_PALETTE, figsize=(12, 4), title_suffix=""):
     """
     Plot 28-day mortality rate and sample counts by Mars endotype.
-
     endotype: Series of Mars labels (Mars1–Mars4)
     mortality: Series of 0/1 mortality labels
     """
-
     sns.set(style="whitegrid", context="talk")
 
-    # --- Align & clean ---
-    tmp = pd.DataFrame(
-        {"endotype": endotype, "mortality28": mortality}
-    ).dropna()
+    # Align and clean
+    tmp = pd.DataFrame({"endotype": endotype, "mortality28": mortality}).dropna()
 
     # Ensure categorical order
-    tmp["endotype"] = pd.Categorical(
-        tmp["endotype"],
-        categories=MARS_ORDER,
-        ordered=True
-    )
+    tmp["endotype"] = pd.Categorical(tmp["endotype"], categories=MARS_ORDER, ordered=True)
 
-    # --- Aggregate ---
-    mort_rate = (
-        tmp.groupby("endotype", observed=True)["mortality28"]
-        .mean()
-        .reset_index(name="mortality_rate")
-    )
+    mort_rate = (tmp.groupby("endotype", observed=True)["mortality28"].mean().reset_index(name="mortality_rate"))
 
-    counts = (
-        tmp["endotype"]
-        .value_counts()
-        .reindex(MARS_ORDER)
-        .reset_index()
-    )
+    counts = (tmp["endotype"].value_counts().reindex(MARS_ORDER).reset_index())
     counts.columns = ["endotype", "count"]
 
     fig, axes = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
 
-    # --- Left: mortality rate ---
+    # Left: mortality rate
     sns.barplot(
         data=mort_rate,
         x="endotype",
@@ -210,26 +178,9 @@ def plot_mars_mortality_summary(
 
     return mort_rate, counts
 
-def plot_pca_ax(
-    X: pd.DataFrame,
-    labels: pd.Series,
-    title: str,
-    ax,
-    scale: bool = True,
-    impute: bool = True,
-    dropna_labels: bool = True,
-    alpha: float = 0.85,
-    point_size: int = 22,
-    min_samples: int = 3,
-    debug: bool = True,
-    # ---- styling controls ----
-    is_mars: bool = False,
-    MARS_ORDER=None,
-    MARS_PALETTE=None,
-    palette=None,                 # optional override for non-mars
-    missing_label: str = "Missing",
-    show_legend: bool = True,
-):
+def plot_pca_ax(X: pd.DataFrame, labels: pd.Series, title: str, ax, scale: bool = True, impute: bool = True, dropna_labels: bool = True, alpha: float = 0.85,
+                point_size: int = 22, min_samples: int = 3, ebug: bool = True, is_mars: bool = False, MARS_ORDER=None, MARS_PALETTE=None,palette=None, missing_label: str = "Missing",
+                show_legend: bool = True,):
     """
     PCA plot on an existing axis.
     - If is_mars=True, uses MARS_ORDER + MARS_PALETTE for consistent coloring.
@@ -238,10 +189,8 @@ def plot_pca_ax(
     """
     sns.set(style="whitegrid", context="talk")
 
-    # --- Align labels to X samples ---
     labels = labels.reindex(X.index)
 
-    # --- Decide which samples to include ---
     if dropna_labels:
         idx = labels.dropna().index
     else:
@@ -253,7 +202,6 @@ def plot_pca_ax(
         print(f"[plot_pca_ax] labels non-missing={(~labels.isna()).sum()} / {len(labels)}")
         print(f"[plot_pca_ax] samples kept after filtering={len(idx)}")
 
-    # --- Guardrail ---
     if len(idx) < min_samples:
         if debug:
             print(f"[plot_pca_ax] SKIP: need >= {min_samples} samples, got {len(idx)}.")
@@ -265,30 +213,28 @@ def plot_pca_ax(
     X_use = X.loc[idx]
     lab = labels.loc[idx]
 
-    # --- Impute ---
+    # Impute
     if impute:
         X_vals = SimpleImputer(strategy="median").fit_transform(X_use)
     else:
         X_vals = X_use.values
 
-    # --- Scale ---
+    # Scale
     if scale:
         X_vals = StandardScaler().fit_transform(X_vals)
 
-    # --- PCA ---
+    # PCA
     pca = PCA(n_components=2, random_state=0)
     pcs = pca.fit_transform(X_vals)
     exp = pca.explained_variance_ratio_ * 100
 
     pc_df = pd.DataFrame(pcs, index=X_use.index, columns=["PC1", "PC2"])
 
-    # --- Labels for plotting ---
     lab_plot = lab.astype("object").where(~lab.isna(), missing_label)
 
     plot_df = pc_df.copy()
     plot_df["label"] = lab_plot.values
 
-    # --- Palette logic ---
     if is_mars:
         if MARS_ORDER is None or MARS_PALETTE is None:
             raise ValueError("For is_mars=True, you must pass MARS_ORDER and MARS_PALETTE.")
@@ -298,7 +244,6 @@ def plot_pca_ax(
         # Default: blue hues for everything non-mars, unless user provides palette
         if palette is None:
             cats = list(pd.unique(plot_df["label"]))
-            # keep Missing last if present
             if missing_label in cats:
                 cats = [c for c in cats if c != missing_label] + [missing_label]
             hue_order = cats
@@ -310,7 +255,6 @@ def plot_pca_ax(
             pal = palette
             hue_order = None
 
-    # --- Plot ---
     sns.scatterplot(
         data=plot_df,
         x="PC1",
@@ -337,22 +281,8 @@ def plot_pca_ax(
 
     return pc_df, pca
 
-def plot_cm_and_optional_roc(
-    y_true,
-    y_pred,
-    y_proba,
-    class_names,
-    title_prefix="Model",
-    # --- styling ---
-    cm_cmap="Blues",                 # keep matrices blue
-    roc_palette=None,                # pass MARS_PALETTE here for Mars ROC colors
-    cm_annot_fontsize=12,
-    tick_fontsize=11,
-    title_fontsize=13,
-    rotate_xticks=45,
-    rotate_yticks=0,
-    show_colorbar=False
-):
+def plot_cm_and_optional_roc(y_true, y_pred, y_proba, class_names, title_prefix="Model", cm_cmap="Blues", roc_palette=None, cm_annot_fontsize=12, tick_fontsize=11,
+                             title_fontsize=13, rotate_xticks=45, rotate_yticks=0, show_colorbar=False):
     """
     Plots:
       1) Confusion matrix (counts)  - readable heatmap (Blues)
@@ -365,9 +295,6 @@ def plot_cm_and_optional_roc(
     ncols = 3 if y_proba is not None else 2
     fig, axes = plt.subplots(1, ncols, figsize=(6.5 * ncols, 5), constrained_layout=True)
 
-    # -------------------------
-    # Confusion matrix: counts
-    # -------------------------
     cm = confusion_matrix(y_true, y_pred, labels=class_names)
     ax = axes[0]
     sns.heatmap(
@@ -390,9 +317,6 @@ def plot_cm_and_optional_roc(
     ax.tick_params(axis="x", labelrotation=rotate_xticks, labelsize=tick_fontsize)
     ax.tick_params(axis="y", labelrotation=rotate_yticks, labelsize=tick_fontsize)
 
-    # -----------------------------------------
-    # Confusion matrix: normalized (row-wise)
-    # -----------------------------------------
     cm_norm = cm.astype(float) / np.maximum(cm.sum(axis=1, keepdims=True), 1)
     ax = axes[1]
     sns.heatmap(
@@ -417,18 +341,11 @@ def plot_cm_and_optional_roc(
     ax.tick_params(axis="x", labelrotation=rotate_xticks, labelsize=tick_fontsize)
     ax.tick_params(axis="y", labelrotation=rotate_yticks, labelsize=tick_fontsize)
 
-    # -------------------------
-    # ROC (OvR), macro-AUC
-    # -------------------------
     if y_proba is not None:
         ax = axes[2]
 
-        # Binarize true labels for OvR ROC
         y_true_bin = label_binarize(y_true, classes=class_names)
 
-        # Choose ROC colors:
-        # - If roc_palette is provided (dict like MARS_PALETTE), use it
-        # - Else default blue hues
         if roc_palette is None:
             roc_colors = sns.color_palette("Blues", n_colors=len(class_names) + 2)[2:]
             color_for = {cls: roc_colors[i] for i, cls in enumerate(class_names)}
@@ -457,34 +374,10 @@ def plot_cm_and_optional_roc(
 
     plt.show()
 
-def plot_pca_true_vs_pred(
-    X: pd.DataFrame,
-    y_true: pd.Series,
-    y_pred: pd.Series,
-    title: str,
-    ax=None,
-    scale: bool = True,
-    impute: bool = True,
-    dropna_true: bool = True,
-    min_samples: int = 3,
-    alpha: float = 0.85,
-    point_size: int = 55,
-
-    # --- misclassification marker controls ---
-    mark_misclassified: bool = True,
-    mis_marker: str = "x",
-    mis_alpha: float = 0.75,
-    mis_lw: float = 1.5,          
-    mis_size_mult: float = 1.4,   
-
-    # --- palette control ---
-    is_mars: bool = False,
-    MARS_ORDER=None,
-    MARS_PALETTE=None,
-    palette=None,
-    missing_label: str = "Missing",
-    debug: bool = False,
-):
+def plot_pca_true_vs_pred(X: pd.DataFrame, y_true: pd.Series, y_pred: pd.Series, title: str, ax=None, scale: bool = True, impute: bool = True,
+                          dropna_true: bool = True, min_samples: int = 3, alpha: float = 0.85, point_size: int = 55,
+                          mark_misclassified: bool = True, mis_marker: str = "x", mis_alpha: float = 0.75, mis_lw: float = 1.5, mis_size_mult: float = 1.4,   # misclassification marker controls
+                          is_mars: bool = False, MARS_ORDER=None, MARS_PALETTE=None, palette=None, missing_label: str = "Missing", debug: bool = False,):
     sns.set(style="whitegrid", context="talk")
 
     if ax is None:
@@ -552,7 +445,7 @@ def plot_pca_true_vs_pred(
         edgecolor=None
     )
 
-    # --- thin cross for misclassified ---
+    # thin cross for misclassified
     if mark_misclassified:
         wrong = plot_df.loc[~plot_df["correct"]]
         if len(wrong) > 0:
@@ -575,38 +468,20 @@ def plot_pca_true_vs_pred(
 
     return plot_df, pca
 
-def plot_top_feature_importances(
-    fitted_pipeline,
-    top_n: int = 10,
-    title: str = "Top feature importances",
-    palette: str = "Blues",
-    figsize=(8, 5),
-    plot_show=False
-):
+def plot_top_feature_importances(fitted_pipeline, top_n: int = 10, title: str = "Top feature importances", palette: str = "Blues", figsize=(8, 5), plot_show=False):
     """
     Plot top-N feature importances from a fitted sklearn Pipeline (e.g. tuned RF)
     and return BOTH:
       - top_n importance table
       - full importance table (all selected features)
-
     Assumes:
       - Final estimator step is named 'clf' and exposes feature_importances_
       - Preprocessing step is named 'pre' and contains a selector 'select'
         exposing either `features_` (preferred) or `selected_idx_`.
-
-    Returns
-    -------
-    top_df : pd.DataFrame
-        Top-N features, sorted by importance (desc).
-        Columns: feature, importance
-
-    full_df : pd.DataFrame
-        All features with importances, sorted by importance (desc).
-        Columns: feature, importance
     """
     sns.set(style="whitegrid", context="talk")
 
-    # --- Extract classifier ---
+    # Extract classifier
     if "clf" not in fitted_pipeline.named_steps:
         raise ValueError("Pipeline must have a final step named 'clf'.")
 
@@ -617,7 +492,7 @@ def plot_top_feature_importances(
 
     importances = np.asarray(clf.feature_importances_, dtype=float)
 
-    # --- Recover feature names ---
+    # Recover feature names
     feat_names = None
     pre = fitted_pipeline.named_steps.get("pre", None)
 
@@ -635,27 +510,23 @@ def plot_top_feature_importances(
     if feat_names is None or len(feat_names) != len(importances):
         feat_names = np.array([f"f{i}" for i in range(len(importances))], dtype=object)
 
-    # --- Full importance table ---
+    # full importance table
     full_df = (
         pd.DataFrame({"feature": feat_names, "importance": importances})
         .sort_values("importance", ascending=False)
         .reset_index(drop=True)
     )
 
-    # --- Top-N table ---
     top_df = full_df.head(top_n).copy()
-
-    # Reverse for horizontal barplot (largest on top)
     plot_df = top_df.iloc[::-1]
 
-    # --- Plot ---
     fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
 
     sns.barplot(
         data=plot_df,
         x="importance",
         y="feature",
-        hue="feature",      # required for seaborn ≥0.13
+        hue="feature",
         palette=palette,
         dodge=False,
         legend=False,
@@ -672,34 +543,17 @@ def plot_top_feature_importances(
 
     return top_df, full_df
 
-
-def plot_mortality_stratification(
-    stratification_df: pd.DataFrame,
-    mort_by_pred: pd.DataFrame,
-    mars_order=None,
-    mars_palette=None,
-    figsize=(16, 4.5),
-    title_prefix: str = "",
-    # --- consistent typography (match your newer functions) ---
-    title_fs: int = 12,
-    label_fs: int = 10,
-    tick_fs: int = 9,
-    legend_fs: int = 9,
-):
+def plot_mortality_stratification(stratification_df: pd.DataFrame, mort_by_pred: pd.DataFrame, mars_order=None, mars_palette=None, figsize=(16, 4.5),
+                                  title_prefix: str = "", title_fs: int = 12, label_fs: int = 10, tick_fs: int = 9, legend_fs: int = 9,):
     """
     Create a 3-panel figure for mortality stratification:
       (1) Mortality rate by predicted endotype (with overall mortality dashed line)
       (2) Total patients and deaths by predicted endotype
       (3) True vs Predicted mortality rate comparison by endotype
-
-    Returns
-    -------
-    fig, axes, comparison_df
     """
-    # Use the same base style as your other plots
-    sns.set(style="whitegrid", context="paper")
 
-    # --- Basic checks ---
+    sns.set(style="whitegrid", context="paper")
+    # Basic checks
     required_cols = {"mortality_28day", "true_endotype"}
     missing_cols = required_cols - set(stratification_df.columns)
     if missing_cols:
@@ -710,7 +564,6 @@ def plot_mortality_stratification(
     if missing_pred_cols:
         raise ValueError(f"mort_by_pred missing required columns: {missing_pred_cols}")
 
-    # --- Align ordering ---
     if mars_order is None:
         mars_order = list(mort_by_pred.index)
 
@@ -719,14 +572,13 @@ def plot_mortality_stratification(
     # Overall mortality
     overall_mort = float(pd.Series(stratification_df["mortality_28day"]).mean())
 
-    # --- Panel 3: True vs Predicted comparison table ---
+    # Panel 3: True vs Predicted comparison table
     mort_by_true = stratification_df.groupby("true_endotype")["mortality_28day"].mean()
     mort_by_true = mort_by_true.reindex([m for m in mars_order if m in mort_by_true.index])
 
     mort_by_pred_rate = mort_by_pred["mortality_rate"].reindex(mort_by_true.index)
     comparison_df = pd.DataFrame({"True": mort_by_true, "Predicted": mort_by_pred_rate})
 
-    # --- Colors ---
     if mars_palette is None:
         cols = sns.color_palette("Blues", n_colors=max(4, len(mars_order)))
         mars_palette = {m: cols[i % len(cols)] for i, m in enumerate(mars_order)}
@@ -742,9 +594,6 @@ def plot_mortality_stratification(
         ax.tick_params(axis="both", labelsize=tick_fs)
         ax.tick_params(axis="x", rotation=rot)
 
-    # =========================
-    # Plotting
-    # =========================
     fig, axes = plt.subplots(1, 3, figsize=figsize, constrained_layout=True)
 
     # 1) Mortality rate by predicted endotype
@@ -854,63 +703,18 @@ def plot_mortality_stratification(
     plt.show()
     return fig, axes, comparison_df
 
-def plot_mortality_stratification_validation(
-    mort_by_pred_training: pd.DataFrame,
-    overall_mort_training: float,
-    mort_by_pred_validation: pd.DataFrame,
-    overall_mort_validation: float,
-    training_label: str = "Training",
-    validation_label: str = "Validation",
-    mars_order=None,
-    mars_palette=None,
-    figsize=(16, 4.5),
-    title_prefix: str = "",
-    # --- consistent typography ---
-    title_fs: int = 12,
-    label_fs: int = 10,
-    tick_fs: int = 9,
-    legend_fs: int = 9,
-):
+def plot_mortality_stratification_validation(mort_by_pred_training: pd.DataFrame, overall_mort_training: float, mort_by_pred_validation: pd.DataFrame, overall_mort_validation: float,
+                                             training_label: str = "Training", validation_label: str = "Validation", mars_order=None, mars_palette=None, figsize=(16, 4.5), title_prefix: str = "",
+                                             title_fs: int = 12, label_fs: int = 10, tick_fs: int = 9, legend_fs: int = 9,):
     """
     3-panel figure for mortality stratification in a validation cohort:
       (1) Validation cohort mortality rate by predicted endotype (with overall dashed line)
       (2) Validation cohort total patients and deaths by predicted endotype
       (3) Training vs Validation mortality rate comparison by predicted endotype
-
-    Inputs
-    ------
-    mort_by_pred_training : pd.DataFrame
-        Index: endotype (e.g., Mars1..Mars4)
-        Columns: 'mortality_rate' (required)
-
-    overall_mort_training : float
-        Overall 28-day mortality in the training cohort.
-
-    mort_by_pred_validation : pd.DataFrame
-        Index: endotype
-        Columns: 'mortality_rate', 'total_samples', 'deaths' (required)
-
-    overall_mort_validation : float
-        Overall 28-day mortality in the validation cohort.
-
-    training_label / validation_label : str
-        Labels used in titles/legends.
-
-    mars_order : list or None
-        Optional desired endotype ordering.
-
-    mars_palette : dict or None
-        Optional mapping endotype -> color (used for endotypes consistently).
-
-    Returns
-    -------
-    fig, axes, comparison_df
-        comparison_df columns: [training_label, validation_label], indexed by endotype.
     """
     # Smaller, publication-friendly base sizes
     sns.set(style="whitegrid", context="paper")
 
-    # --- Checks ---
     if "mortality_rate" not in mort_by_pred_training.columns:
         raise ValueError("mort_by_pred_training must contain column 'mortality_rate'.")
 
@@ -919,7 +723,6 @@ def plot_mortality_stratification_validation(
     if missing_val:
         raise ValueError(f"mort_by_pred_validation missing required columns: {missing_val}")
 
-    # --- Order ---
     if mars_order is None:
         mars_order = list(mort_by_pred_validation.index)
 
@@ -928,13 +731,11 @@ def plot_mortality_stratification_validation(
     mort_by_pred_validation = mort_by_pred_validation.reindex([m for m in order if m in mort_by_pred_validation.index])
     mort_by_pred_training_rate = mort_by_pred_training["mortality_rate"].reindex(order)
 
-    # --- Comparison DF ---
     comparison_df = pd.DataFrame({
         training_label: mort_by_pred_training_rate,
         validation_label: mort_by_pred_validation["mortality_rate"].reindex(order),
     }).fillna(0)
 
-    # --- Colors ---
     if mars_palette is None:
         cols = sns.color_palette("Blues", n_colors=max(4, len(order)))
         mars_palette = {m: cols[i % len(cols)] for i, m in enumerate(order)}
@@ -951,9 +752,6 @@ def plot_mortality_stratification_validation(
         ax.tick_params(axis="both", labelsize=tick_fs)
         ax.tick_params(axis="x", rotation=rotation)
 
-    # =========================
-    # Plotting
-    # =========================
     fig, axes = plt.subplots(1, 3, figsize=figsize, constrained_layout=True)
 
     # 1) Validation mortality rate by predicted endotype
