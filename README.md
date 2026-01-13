@@ -5,4 +5,4 @@ create environment:
 
 conda env create -f environment.yml
 
-creates a environment calles MLCO2
+creates a environment calles ml-sepsis
