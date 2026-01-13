@@ -179,7 +179,7 @@ def plot_mars_mortality_summary(endotype: pd.Series, mortality: pd.Series, MARS_
     return mort_rate, counts
 
 def plot_pca_ax(X: pd.DataFrame, labels: pd.Series, title: str, ax, scale: bool = True, impute: bool = True, dropna_labels: bool = True, alpha: float = 0.85,
-                point_size: int = 22, min_samples: int = 3, ebug: bool = True, is_mars: bool = False, MARS_ORDER=None, MARS_PALETTE=None,palette=None, missing_label: str = "Missing",
+                point_size: int = 22, min_samples: int = 3, debug: bool = True, is_mars: bool = False, MARS_ORDER=None, MARS_PALETTE=None,palette=None, missing_label: str = "Missing",
                 show_legend: bool = True,):
     """
     PCA plot on an existing axis.
