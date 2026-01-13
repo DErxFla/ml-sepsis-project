@@ -679,48 +679,25 @@ def plot_mortality_stratification(
     mars_order=None,
     mars_palette=None,
     figsize=(16, 4.5),
-    title_prefix="",
+    title_prefix: str = "",
+    # --- consistent typography (match your newer functions) ---
+    title_fs: int = 12,
+    label_fs: int = 10,
+    tick_fs: int = 9,
+    legend_fs: int = 9,
 ):
     """
     Create a 3-panel figure for mortality stratification:
-      (1) Mortality rate by *predicted* endotype (with overall mortality dashed line)
+      (1) Mortality rate by predicted endotype (with overall mortality dashed line)
       (2) Total patients and deaths by predicted endotype
       (3) True vs Predicted mortality rate comparison by endotype
-
-    Parameters
-    ----------
-    stratification_df : pd.DataFrame
-        Must contain columns:
-          - 'mortality_28day'  (0/1 or boolean)
-          - 'true_endotype'    (e.g., Mars1..Mars4)
-        (Optional) may also contain 'pred_endotype' but not required here.
-
-    mort_by_pred : pd.DataFrame
-        Indexed by predicted endotype with columns:
-          - 'mortality_rate'
-          - 'total_samples'
-          - 'deaths'
-
-    mars_order : list or None
-        Optional explicit ordering of endotypes (recommended).
-        Example: ["Mars1","Mars2","Mars3","Mars4"]
-
-    mars_palette : dict or None
-        Optional mapping endotype -> color. If provided, used consistently across panels.
-        Example: {"Mars1":"...", "Mars2":"...", ...}
-
-    figsize : tuple
-        Figure size.
-
-    title_prefix : str
-        Optional prefix to prepend to subplot titles.
 
     Returns
     -------
     fig, axes, comparison_df
-        comparison_df has columns ["True","Predicted"] indexed by endotype.
     """
-    sns.set(style="whitegrid", context="talk")
+    # Use the same base style as your other plots
+    sns.set(style="whitegrid", context="paper")
 
     # --- Basic checks ---
     required_cols = {"mortality_28day", "true_endotype"}
@@ -735,10 +712,8 @@ def plot_mortality_stratification(
 
     # --- Align ordering ---
     if mars_order is None:
-        # Use mort_by_pred order first; fallback to sorted unique endotypes
         mars_order = list(mort_by_pred.index)
 
-    # Reindex mort_by_pred to desired order (drop missing, keep existing)
     mort_by_pred = mort_by_pred.reindex([m for m in mars_order if m in mort_by_pred.index])
 
     # Overall mortality
@@ -748,21 +723,24 @@ def plot_mortality_stratification(
     mort_by_true = stratification_df.groupby("true_endotype")["mortality_28day"].mean()
     mort_by_true = mort_by_true.reindex([m for m in mars_order if m in mort_by_true.index])
 
-    mort_by_pred_rate = mort_by_pred["mortality_rate"].copy()
-    mort_by_pred_rate = mort_by_pred_rate.reindex(mort_by_true.index)
-
+    mort_by_pred_rate = mort_by_pred["mortality_rate"].reindex(mort_by_true.index)
     comparison_df = pd.DataFrame({"True": mort_by_true, "Predicted": mort_by_pred_rate})
 
     # --- Colors ---
-    # Rules: endotypes can use mars_palette; otherwise default to Blues.
     if mars_palette is None:
         cols = sns.color_palette("Blues", n_colors=max(4, len(mars_order)))
         mars_palette = {m: cols[i % len(cols)] for i, m in enumerate(mars_order)}
 
-    # Non-endotype elements should be blue hues unless specified. Keep deaths neutral/darker.
-    blue_dark = sns.color_palette("Blues", n_colors=6)[-2]
-    blue_light = sns.color_palette("Blues", n_colors=6)[-4]
-    deaths_color = "gray"  # neutral; change if you prefer a blue shade
+    blues6 = sns.color_palette("Blues", n_colors=6)
+    blue_dark = blues6[-2]
+    blue_light = blues6[-4]
+    deaths_color = "gray"
+
+    def _apply_typography(ax, xlabel: str, ylabel: str, rot: int = 45):
+        ax.set_xlabel(xlabel, fontsize=label_fs)
+        ax.set_ylabel(ylabel, fontsize=label_fs)
+        ax.tick_params(axis="both", labelsize=tick_fs)
+        ax.tick_params(axis="x", rotation=rot)
 
     # =========================
     # Plotting
@@ -776,11 +754,13 @@ def plot_mortality_stratification(
     colors_pred = [mars_palette.get(k, blue_dark) for k in x_labels]
 
     ax.bar(x_labels, y_vals, color=colors_pred, alpha=0.85, edgecolor="black", linewidth=0.8)
-    ax.set_title(f"{title_prefix}28-Day Mortality Rate by Predicted Endotype".strip(), fontweight="bold")
-    ax.set_ylabel("Mortality Rate")
-    ax.set_xlabel("Predicted Endotype")
+    ax.set_title(
+        f"{title_prefix}28-Day Mortality Rate by Predicted Endotype".strip(),
+        fontsize=title_fs,
+        fontweight="bold",
+    )
+    _apply_typography(ax, xlabel="Predicted Endotype", ylabel="Mortality Rate", rot=45)
     ax.set_ylim(0, 1)
-    ax.tick_params(axis="x", rotation=45)
 
     ax.axhline(
         y=overall_mort,
@@ -789,7 +769,7 @@ def plot_mortality_stratification(
         linewidth=1.5,
         label=f"Overall: {overall_mort:.2f}",
     )
-    ax.legend(fontsize=9, frameon=True)
+    ax.legend(fontsize=legend_fs, frameon=True)
     ax.grid(axis="y", alpha=0.3)
 
     # 2) Total counts and deaths by predicted endotype
@@ -818,12 +798,15 @@ def plot_mortality_stratification(
         linewidth=0.8,
     )
 
-    ax.set_title(f"{title_prefix}Patient Counts and Deaths by Endotype".strip(), fontweight="bold")
-    ax.set_ylabel("Count")
-    ax.set_xlabel("Predicted Endotype")
+    ax.set_title(
+        f"{title_prefix}Patient Counts and Deaths by Endotype".strip(),
+        fontsize=title_fs,
+        fontweight="bold",
+    )
     ax.set_xticks(x_pos)
-    ax.set_xticklabels(mort_by_pred.index.tolist(), rotation=45)
-    ax.legend(fontsize=9, frameon=True)
+    ax.set_xticklabels(mort_by_pred.index.tolist())
+    _apply_typography(ax, xlabel="Predicted Endotype", ylabel="Count", rot=45)
+    ax.legend(fontsize=legend_fs, frameon=True)
     ax.grid(axis="y", alpha=0.3)
 
     # 3) True vs Predicted comparison
@@ -831,7 +814,6 @@ def plot_mortality_stratification(
     x_pos_comp = np.arange(len(comparison_df))
     width_comp = 0.38
 
-    # True bars: endotype palette; Pred bars: lighter blues to keep "non-endotype" style
     true_colors = [mars_palette.get(k, blue_dark) for k in comparison_df.index]
     pred_colors = sns.color_palette("Blues", n_colors=max(3, len(comparison_df) + 2))[2:2 + len(comparison_df)]
 
@@ -856,13 +838,17 @@ def plot_mortality_stratification(
         linewidth=0.8,
     )
 
-    ax.set_xlabel("Endotype", fontweight="bold")
-    ax.set_ylabel("Mortality Rate", fontweight="bold")
-    ax.set_title(f"{title_prefix}True vs Predicted Endotypes".strip(), fontweight="bold")
+    ax.set_title(
+        f"{title_prefix}True vs Predicted Endotypes".strip(),
+        fontsize=title_fs,
+        fontweight="bold",
+    )
     ax.set_xticks(x_pos_comp)
-    ax.set_xticklabels(comparison_df.index.tolist(), rotation=45)
+    ax.set_xticklabels(comparison_df.index.tolist())
+    _apply_typography(ax, xlabel="Endotype", ylabel="Mortality Rate", rot=45)
     ax.set_ylim(0, 1)
-    ax.legend(fontsize=9, frameon=True)
+
+    ax.legend(fontsize=legend_fs, frameon=True)
     ax.grid(axis="y", alpha=0.3)
 
     plt.show()
